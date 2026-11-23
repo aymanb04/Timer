@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Interval Workout Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: loud, gym-floor, readable from three metres away
+   IDEA: a gym wall clock / boxing round timer
+   PICTURE: the full-bleed phase field with giant condensed digits
+   COLOUR and TYPE: black housing; yellow prepare, lime work, red rest, blue cycle rest, violet cool-down; Bebas Neue + Barlow
+   LAYOUT: setup = tabs + one column of steppers with live total; run = fullscreen stack: top bar, field, up-next, counters */
+:root{color-scheme:light dark;--bg:light-dark(#f2f2ee,#0b0b0b);--card:light-dark(#fff,#171717);--ink:light-dark(#111,#f3f3f0);--mute:light-dark(#666,#9a9a96);--line:light-dark(#e2e2dc,#262626);
+--prep:#f4ef5c;--work:#a8f05c;--rest:#ef5a45;--crest:#57a2f7;--cool:#b690f4;--done:#f3f3f0}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif;overflow-x:clip}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:3px solid var(--crest);outline-offset:2px}
+.bb{font-family:"Bebas Neue",Impact,sans-serif;letter-spacing:.02em;font-weight:400}
+.chev{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='40'%3E%3Cpath d='M0 0h11l13 20-13 20H0l13-20z' fill='rgba(0,0,0,.16)'/%3E%3C/svg%3E");background-size:30px 100%;animation:slide 1.2s linear infinite}
+@keyframes slide{to{background-position:30px 0}}
+@media(prefers-reduced-motion:reduce){.chev{animation:none}}
+
+#app{max-width:580px;margin:0 auto;padding:16px 16px 48px}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.logo{width:48px;height:48px;border-radius:13px;background:var(--work);color:#111;display:grid;place-items:center;font-size:21px;line-height:1}
+h1{font-size:34px;line-height:1.05;margin:0}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px}
+.tabs button{min-height:44px;border-radius:10px;font-weight:700}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--bg)}
+.view{display:none}.view.on{display:block}
+.total{display:flex;align-items:baseline;justify-content:space-between;gap:10px;background:#0b0b0b;color:#f3f3f0;border-radius:18px;padding:16px 20px;margin-bottom:14px}
+.total b{font-size:clamp(56px,16vw,84px);line-height:.9;color:var(--work)}
+.total small{color:#9a9a96;font-size:14px;text-align:right;font-family:Barlow,sans-serif;letter-spacing:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;min-height:40px;font-weight:600;font-size:15px}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rows{background:var(--card);border-radius:18px;border:1px solid var(--line);overflow:hidden}
+.row{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:12px;padding:10px 12px 10px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.dot{width:14px;height:14px;border-radius:4px}
+.row label{font-weight:600}
+.step{display:flex;align-items:center;gap:4px}
+.step button{width:44px;height:44px;border-radius:12px;background:var(--bg);font-size:24px;line-height:1;font-weight:700}
+.step input{width:92px;height:44px;text-align:center;border:0;background:none;font-family:"Bebas Neue",Impact,sans-serif;font-size:30px;padding:0}
+h2{font-size:26px;margin:26px 0 8px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.panel label.ck{display:flex;gap:10px;align-items:center;font-weight:600;min-height:44px}
+.panel input[type=checkbox]{width:22px;height:22px;accent-color:#5aa02a;flex:none}
+.fld{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:15px}
+.fld select{height:44px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);padding:0 10px;font-size:16px}
+.vol{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-top:10px;font-weight:600}
+.vol input{width:100%;accent-color:#5aa02a;height:30px}
+.test{height:44px;padding:0 16px;border-radius:12px;background:var(--ink);color:var(--bg);font-weight:700}
+textarea{width:100%;min-height:92px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);padding:10px 12px;font-size:16px;resize:vertical}
+.hint{color:var(--mute);font-size:13px;margin:6px 2px 0}
+.go{width:100%;height:68px;border-radius:18px;background:var(--work);color:#111;font-size:36px;margin-top:16px;position:sticky;bottom:12px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.save{display:flex;gap:8px}
+.save input{flex:1;height:48px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);padding:0 14px;font-size:16px}
+.save button{height:48px;padding:0 18px;border-radius:12px;background:var(--ink);color:var(--bg);font-weight:700}
+.list{list-style:none;padding:0;margin:10px 0 0}
+.list li{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.list .ld{flex:1;text-align:left;min-height:44px;font-weight:600}
+.list small{display:block;color:var(--mute);font-weight:400;font-size:13px}
+.list .del{width:44px;height:44px;border-radius:12px;color:var(--mute);font-size:20px}
+.list .rt{margin-left:auto;text-align:right;white-space:nowrap}
+.empty{color:var(--mute);font-size:15px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stats div{background:#0b0b0b;color:#f3f3f0;border-radius:14px;padding:12px}
+.stats b{display:block;font-size:40px;line-height:1;color:var(--work)}
+.stats span{font-size:13px;color:#9a9a96}
+.sw{background:#0b0b0b;color:#f3f3f0;border-radius:18px;padding:22px 16px;text-align:center}
+#swT{font-size:clamp(72px,22vw,128px);line-height:.9;font-variant-numeric:tabular-nums}
+#swT small{font-size:.45em;color:#9a9a96}
+#swL{font-size:22px;color:var(--work);min-height:28px}
+.swb{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px}
+.swb button{height:58px;border-radius:14px;background:#222;color:#f3f3f0;font-size:26px}
+.swb #swGo{background:var(--work);color:#111}
+.keys{color:var(--mute);font-size:13px;margin-top:24px}
+
+#run{position:fixed;inset:0;background:#000;color:#000;display:none;grid-template-rows:52px 1fr 68px 84px;z-index:5}
+#run.show{display:grid}
+.top{position:relative;display:flex;align-items:center;justify-content:space-between;padding:0 14px;color:#f3f3f0}
+.top .chev{position:absolute;left:0;top:0;height:52px;width:min(40vw,200px);filter:invert(1);opacity:.45}
+.top button{position:relative;width:44px;height:44px;color:#f3f3f0;font-size:26px}
+.top .tt{font-size:28px;position:relative}
+.field{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:background-color .25s;overflow:hidden}
+#lbl{font-size:clamp(30px,6vh,60px);line-height:1;text-align:center;padding:0 60px}
+#ex{font-size:clamp(22px,4.5vh,44px);line-height:1;opacity:.8;min-height:.5em}
+#time{font-size:min(34vw,48vh);line-height:.85;font-variant-numeric:tabular-nums;margin-top:.04em}
+#time.big{font-size:min(24vw,44vh)}
+.field .nav{position:absolute;bottom:8px;width:56px;height:56px;font-size:30px;color:#000;opacity:.7}
+#prev{left:8px}#next{right:8px}
+.adj{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+.adj button{height:44px;padding:0 14px;border-radius:10px;background:rgba(0,0,0,.12);font-weight:700;color:#000}
+#mute{position:absolute;top:8px;right:8px;height:44px;padding:0 10px;font-size:14px;font-weight:700;color:#000;opacity:.75}
+#rnd{position:absolute;top:14px;left:16px;font-size:22px;opacity:.75}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+#flash.go{animation:fl .5s ease-out}
+@keyframes fl{0%,40%{opacity:.9}100%{opacity:0}}
+.next{display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:4px solid #000;transition:background-color .25s}
+.next small{font-size:11px;font-weight:700;letter-spacing:.06em;line-height:1}
+#nx{font-size:34px;line-height:1}
+.bot{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;color:#9a9a96;padding:0 12px}
+.ct{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;line-height:1.1}
+.ct b{font-size:56px;line-height:1}
+.ct.l{justify-content:flex-end}.ct.l b{color:var(--crest)}
+.ct.r b{color:#f6c445}
+#pp{width:84px;height:64px;margin:0 16px;border-radius:10px;background:#1c1c1c;color:var(--work);font-size:28px}
+#done{position:absolute;inset:auto 0 16%;display:none;justify-content:center;gap:10px}
+#done button{height:56px;padding:0 26px;border-radius:14px;background:#000;color:#f3f3f0;font-size:28px}
+@media(max-height:520px){#run{grid-template-rows:44px 1fr 52px 64px}.ct b{font-size:40px}#nx{font-size:26px}.adj{display:none}}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="head"><div class="logo bb">GO</div><h1 class="bb">Interval timer</h1></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-v="timer" aria-selected="true">Timer</button>
+    <button role="tab" data-v="watch" aria-selected="false">Stopwatch</button>
+    <button role="tab" data-v="hist" aria-selected="false">History</button>
+  </div>
+
+  <section class="view on" id="v-timer">
+    <div class="total bb"><b id="tot">4:00</b><small id="sum"></small></div>
+    <div class="chips" id="presets"></div>
+    <div class="rows" id="rows"></div>
+
+    <h2 class="bb">Sound &amp; alerts</h2>
+    <div class="panel">
+      <div class="grid2">
+        <label class="fld">Sound style<select id="oStyle"><option value="beep">Loud beep</option><option value="bell">Boxing bell</option><option value="whistle">Whistle</option><option value="horn">Air horn</option></select></label>
+        <label class="fld">Countdown beeps<select id="oCount"><option value="0">Off</option><option value="3">Last 3 seconds</option><option value="5">Last 5 seconds</option><option value="10">Last 10 seconds</option></select></label>
+        <label class="ck"><input type="checkbox" id="oVoice"> Voice guidance</label>
+        <label class="ck"><input type="checkbox" id="oHalf"> Halfway &amp; 10 s warnings</label>
+        <label class="ck"><input type="checkbox" id="oFlash"> Screen flash</label>
+        <label class="ck"><input type="checkbox" id="oVib"> Vibrate (Android)</label>
+        <label class="ck"><input type="checkbox" id="oLast"> Rest after last repeat</label>
+      </div>
+      <div class="vol"><span>Volume</span><input type="range" id="oVol" min="0" max="100" aria-label="Volume"><button class="test" id="test">Test</button></div>
+      <p class="hint">Turn your phone volume all the way up too. On iPhone, sound plays even with the silent switch on (Safari 17+).</p>
+    </div>
+
+    <h2 class="bb">Exercises (optional)</h2>
+    <div class="panel">
+      <textarea id="oEx" placeholder="One per line, e.g.&#10;Burpees&#10;Squats&#10;Push-ups" aria-label="Exercise names"></textarea>
+      <p class="hint">Shown and spoken for each work round, in order, looping if there are more rounds than names.</p>
+    </div>
+
+    <h2 class="bb">My workouts</h2>
+    <form class="save" id="saveForm"><input id="name" placeholder="Name this workout" maxlength="40" aria-label="Workout name"><button>Save</button></form>
+    <ul class="list" id="saved"></ul>
+    <button class="go bb" id="start">Start workout</button>
+    <p class="keys">While running: Space pauses, ← → skip phases, Esc stops. The screen stays on during a workout. Everything is stored in this browser.</p>
+  </section>
+
+  <section class="view" id="v-watch">
+    <div class="sw">
+      <div id="swT" class="bb">00:00<small>.00</small></div>
+      <div id="swL" class="bb"></div>
+      <div class="swb"><button class="bb" id="swReset">Reset</button><button class="bb" id="swGo">Start</button><button class="bb" id="swLap">Lap</button></div>
+    </div>
+    <ul class="list" id="laps"></ul>
+  </section>
+
+  <section class="view" id="v-hist">
+    <div class="stats" id="stats"></div>
+    <ul class="list" id="hist"></ul>
+    <p class="hint"><button class="chip" id="clearHist">Clear history</button></p>
+  </section>
+</div>
+
+<section id="run" aria-live="polite">
+  <div class="top"><span class="chev"></span><button id="close" aria-label="Stop workout">✕</button><span class="tt bb" id="left">00:00</span></div>
+  <div class="field" id="field">
+    <div id="flash"></div>
+    <span id="rnd" class="bb"></span>
+    <button id="mute" aria-label="Toggle sound">SOUND ON</button>
+    <div id="lbl" class="bb">Prepare</div>
+    <div id="ex" class="bb"></div>
+    <div id="time" class="bb">00:10</div>
+    <div id="done"><button class="bb" id="again">Again</button><button class="bb" id="back">Done</button></div>
+    <div class="adj"><button id="minus">−10 s</button><button id="plus">+10 s</button></div>
+    <button class="nav" id="prev" aria-label="Previous phase">«</button>
+    <button class="nav" id="next" aria-label="Next phase">»</button>
+  </div>
+  <div class="next chev" id="nxBar"><small>UP NEXT</small><span id="nx" class="bb">Work</span></div>
+  <div class="bot">
+    <div class="ct l"><span>REPEATS<br>LEFT</span><b class="bb" id="rl">8</b></div>
+    <button id="pp" aria-label="Pause">❚❚</button>
+    <div class="ct r"><b class="bb" id="cl">1</b><span>CYCLES<br>LEFT</span></div>
+  </div>
+</section>
+
+<script>
+{
+const $=s=>document.querySelector(s);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const PH={prep:{l:'Prepare',c:'var(--prep)'},work:{l:'Work',c:'var(--work)'},rest:{l:'Rest',c:'var(--rest)'},crest:{l:'Cycle rest',c:'var(--crest)'},cool:{l:'Cool down',c:'var(--cool)'},done:{l:'Finish',c:'var(--done)'}};
+const FIELDS=[
+  {k:'prep',l:'Prepare',t:1,min:0,c:'prep'},{k:'work',l:'Work',t:1,min:1,c:'work'},{k:'rest',l:'Rest',t:1,min:0,c:'rest'},
+  {k:'reps',l:'Repeats',t:0,min:1,c:''},{k:'cycles',l:'Cycles',t:0,min:1,c:''},
+  {k:'crest',l:'Rest between cycles',t:1,min:0,c:'crest'},{k:'cool',l:'Cool down',t:1,min:0,c:'cool'}];
+const PRESETS={
+  'Tabata':{prep:10,work:20,rest:10,reps:8,cycles:1,crest:0,cool:0},
+  'HIIT 40/20':{prep:10,work:40,rest:20,reps:6,cycles:3,crest:60,cool:60},
+  'EMOM 10':{prep:10,work:60,rest:0,reps:10,cycles:1,crest:0,cool:0},
+  'Boxing 3 min':{prep:15,work:180,rest:60,reps:6,cycles:1,crest:0,cool:0},
+  'MMA 5 min':{prep:15,work:300,rest:60,reps:3,cycles:1,crest:0,cool:0},
+  '30/30':{prep:10,work:30,rest:30,reps:10,cycles:2,crest:90,cool:0},
+  'Circuit 45/15':{prep:10,work:45,rest:15,reps:5,cycles:4,crest:60,cool:120}};
+const DEF_O={style:'beep',count:3,voice:true,half:true,flash:true,vib:true,last:false,vol:100,ex:''};
+let cfg=store.get('iv.cfg',{...PRESETS.Tabata});
+let opts={...DEF_O,...store.get('iv.opts',{})};
+let saved=store.get('iv.saved',[]);
+let hist=store.get('iv.hist',[]);
+let cfgName='';
+
+const fmt=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,'0');return h?`${h}:${p(m)}:${p(x)}`:`${p(m)}:${p(x)}`};
+const parse=v=>String(v).split(':').map(n=>parseInt(n,10)||0).reduce((a,n)=>a*60+n,0);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const exList=()=>opts.ex.split('\n').map(s=>s.trim()).filter(Boolean);
+
+function build(c){
+  const out=[],ex=exList(),add=(type,dur,rl,cl,round,name)=>{if(dur>0)out.push({type,dur,rl,cl,round,name:name||''})};
+  add('prep',c.prep,c.reps,c.cycles,'');
+  let n=0;
+  for(let y=1;y<=c.cycles;y++){
+    for(let r=1;r<=c.reps;r++){
+      const rd=`Round ${r}/${c.reps}`+(c.cycles>1?` · Cycle ${y}/${c.cycles}`:'');
+      add('work',c.work,c.reps-r+1,c.cycles-y+1,rd,ex.length?ex[n++%ex.length]:'');
+      if(r<c.reps||opts.last)add('rest',c.rest,c.reps-r,c.cycles-y+1,rd);
+    }
+    if(y<c.cycles)add('crest',c.crest,c.reps,c.cycles-y,`Cycle ${y} done`);
+  }
+  add('cool',c.cool,0,0,'');
+  return out;
+}
+const totalOf=c=>build(c).reduce((a,p)=>a+p.dur,0);
+
+/* ---------- tabs ---------- */
+document.querySelector('.tabs').addEventListener('click',e=>{const v=e.target.dataset.v;if(!v)return;
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));if(v==='hist')renderHist()});
+
+/* ---------- setup ---------- */
+function renderSetup(){
+  $('#rows').innerHTML=FIELDS.map(f=>`<div class="row"><span class="dot" style="background:${f.c?PH[f.c].c:'transparent'}"></span><label for="f-${f.k}">${f.l}</label>
+    <div class="step"><button data-k="${f.k}" data-d="-1" aria-label="Less ${f.l}">−</button><input id="f-${f.k}" data-k="${f.k}" inputmode="numeric" value="${f.t?fmt(cfg[f.k]):cfg[f.k]}"><button data-k="${f.k}" data-d="1" aria-label="More ${f.l}">+</button></div></div>`).join('');
+  $('#presets').innerHTML=Object.keys(PRESETS).map(n=>`<button class="chip${JSON.stringify(PRESETS[n])===JSON.stringify(cfg)?' on':''}" data-p="${n}">${n}</button>`).join('');
+  const ph=build(cfg);
+  $('#tot').textContent=fmt(ph.reduce((a,p)=>a+p.dur,0));
+  $('#sum').innerHTML=`${cfgName?esc(cfgName)+'<br>':''}${cfg.cycles>1?cfg.cycles+' × ':''}${cfg.reps} × ${fmt(cfg.work)} work`;
+  $('#saved').innerHTML=saved.length?saved.map((w,i)=>`<li><button class="ld" data-i="${i}">${esc(w.name)}<small>${fmt(totalOf(w.cfg))} · ${w.cfg.reps} × ${fmt(w.cfg.work)} / ${fmt(w.cfg.rest)}${w.cfg.cycles>1?' · '+w.cfg.cycles+' cycles':''}</small></button><button class="del" data-x="${i}" aria-label="Delete ${esc(w.name)}">✕</button></li>`).join(''):'<li class="empty">No saved workouts yet. Set one up above and save it here.</li>';
+  $('#oStyle').value=opts.style;$('#oCount').value=opts.count;$('#oVol').value=opts.vol;
+  ['voice','half','flash','vib','last'].forEach(k=>$('#o'+k[0].toUpperCase()+k.slice(1)).checked=opts[k]);
+  if(document.activeElement!==$('#oEx'))$('#oEx').value=opts.ex;
+  store.set('iv.cfg',cfg);store.set('iv.opts',opts);store.set('iv.saved',saved);
+}
+const stepOf=(k,v)=>FIELDS.find(f=>f.k===k).t?(v>=300?30:v>=60?15:5):1;
+$('#rows').addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(!b)return;const k=b.dataset.k,d=+b.dataset.d,f=FIELDS.find(x=>x.k===k);
+  const v=cfg[k],s=d>0?stepOf(k,v):stepOf(k,Math.max(0,v-1));let nv=v+d*s;if(f.t&&d<0&&v%s)nv=v-v%s;
+  cfg[k]=Math.max(f.min,Math.min(f.t?359999:99,nv));renderSetup()});
+$('#rows').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;const f=FIELDS.find(x=>x.k===k);
+  cfg[k]=Math.max(f.min,Math.min(f.t?359999:99,f.t?parse(e.target.value):parseInt(e.target.value,10)||f.min));renderSetup()});
+$('#presets').addEventListener('click',e=>{const p=e.target.dataset.p;if(p){cfg={...PRESETS[p]};cfgName=p;renderSetup()}});
+const bindOpt=(id,k,fn)=>$(id).addEventListener(id==='#oEx'||id==='#oVol'?'input':'change',e=>{opts[k]=fn(e.target);renderSetup()});
+bindOpt('#oStyle','style',t=>t.value);bindOpt('#oCount','count',t=>+t.value);bindOpt('#oVol','vol',t=>+t.value);bindOpt('#oEx','ex',t=>t.value);
+['voice','half','flash','vib','last'].forEach(k=>bindOpt('#o'+k[0].toUpperCase()+k.slice(1),k,t=>t.checked));
+$('#saveForm').addEventListener('submit',e=>{e.preventDefault();const n=$('#name').value.trim()||cfgName||'Workout '+(saved.length+1);const ex=saved.findIndex(w=>w.name===n);
+  const w={name:n,cfg:{...cfg},ex:opts.ex};if(ex>=0)saved[ex]=w;else saved.unshift(w);cfgName=n;$('#name').value='';renderSetup()});
+$('#saved').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.i){const w=saved[b.dataset.i];cfg={...w.cfg};cfgName=w.name;if(w.ex!=null)opts.ex=w.ex;$('#oEx').value=opts.ex;scrollTo({top:0,behavior:'smooth'})}
+  if(b.dataset.x)saved.splice(+b.dataset.x,1);renderSetup()});
+
+/* ---------- sound (loud) ---------- */
+/* Sounds are pre-rendered to WAV and played through <audio> elements: phones treat that as media
+   (plays with the iPhone silent switch on, uses media volume on Android). Web Audio is only a fallback. */
+let ac=null,master=null,muted=false,C=null,D=null;
+const BUF={};
+function mkComp(c){const comp=c.createDynamicsCompressor();comp.threshold.value=-6;comp.knee.value=6;comp.ratio.value=8;comp.attack.value=.002;comp.release.value=.15;comp.connect(c.destination);return comp}
+function initAudio(){
+  try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+  try{if(!ac){ac=new (window.AudioContext||window.webkitAudioContext)();master=ac.createGain();master.connect(mkComp(ac))}ac.resume()}catch(e){}
+}
+function tone(f,d,{type='square',v=1,at=0,slide=0}={}){const t=C.currentTime+at,o=C.createOscillator(),g=C.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(f*slide,t+d);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.008);g.gain.setValueAtTime(v,t+Math.max(.01,d-.06));g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  o.connect(g).connect(D);o.start(t);o.stop(t+d+.02)}
+function bell(f,d,at=0){[1,2.76,5.4,8.93].forEach((m,i)=>{const t=C.currentTime+at,o=C.createOscillator(),g=C.createGain();o.type='sine';o.frequency.value=f*m;
+  g.gain.setValueAtTime([1,.6,.4,.25][i],t);g.gain.exponentialRampToValueAtTime(.0001,t+d/(i+1));o.connect(g).connect(D);o.start(t);o.stop(t+d)})}
+const SND={
+  beep:{tick:()=>tone(1000,.16),go:()=>{tone(1320,.7);tone(660,.7,{v:.6})},rest:()=>tone(520,.7),end:()=>{tone(1320,.25);tone(1320,.25,{at:.3});tone(1760,.9,{at:.6})}},
+  bell:{tick:()=>bell(1400,.4),go:()=>{bell(700,2);bell(700,2,.35)},rest:()=>bell(700,2),end:()=>{bell(700,2);bell(700,2,.3);bell(700,2.5,.6)}},
+  whistle:{tick:()=>tone(2600,.14,{type:'sine'}),go:()=>{for(let i=0;i<14;i++)tone(2800+(i%2)*260,.05,{type:'sine',at:i*.05})},rest:()=>tone(2600,.9,{type:'sine',slide:.85}),end:()=>{for(let k=0;k<3;k++)tone(2800,.3,{type:'sine',at:k*.38})}},
+  horn:{tick:()=>tone(880,.15,{type:'sawtooth'}),go:()=>{tone(233,1,{type:'sawtooth'});tone(311,1,{type:'sawtooth',v:.7});tone(466,1,{type:'sawtooth',v:.5})},rest:()=>{tone(196,.8,{type:'sawtooth'});tone(247,.8,{type:'sawtooth',v:.6})},end:()=>{for(let k=0;k<3;k++){tone(233,.4,{type:'sawtooth',at:k*.5});tone(311,.4,{type:'sawtooth',v:.7,at:k*.5})}}}};
+const LEN={tick:.5,go:2.4,rest:2.2,end:3.2};
+function wav(buf){const ch=buf.getChannelData(0),n=ch.length;let pk=0;for(let j=0;j<n;j++)pk=Math.max(pk,Math.abs(ch[j]));const k=pk?.98/pk:1;
+  const ab=new ArrayBuffer(44+n*2),dv=new DataView(ab),W=(o,s)=>{for(let j=0;j<s.length;j++)dv.setUint8(o+j,s.charCodeAt(j))};
+  W(0,'RIFF');dv.setUint32(4,36+n*2,true);W(8,'WAVE');W(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);
+  dv.setUint32(24,buf.sampleRate,true);dv.setUint32(28,buf.sampleRate*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);W(36,'data');dv.setUint32(40,n*2,true);
+  for(let j=0;j<n;j++)dv.setInt16(44+j*2,Math.max(-1,Math.min(1,ch[j]*k))*32767,true);
+  return new Blob([ab],{type:'audio/wav'})}
+async function renderStyle(style){if(BUF[style])return;const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!OAC)return;const out={};
+  for(const kind of Object.keys(LEN)){const sr=44100,oc=new OAC(1,Math.ceil(sr*LEN[kind]),sr);C=oc;D=mkComp(oc);SND[style][kind]();
+    const b=await oc.startRendering();const a=new Audio(URL.createObjectURL(wav(b)));a.preload='auto';a.setAttribute('playsinline','');a.load();out[kind]=a}
+  BUF[style]=out}
+(async()=>{try{for(const s of [opts.style,...Object.keys(SND).filter(s=>s!==opts.style)])await renderStyle(s)}catch(e){}})();
+// must run inside a tap: plays every sound once silently so the phone allows it later
+function unlock(){initAudio();
+  Object.values(BUF).forEach(set=>Object.values(set).forEach(a=>{if(a.__ok)return;a.muted=true;
+    try{a.__unlock=a.play().then(()=>{a.pause();a.currentTime=0;a.muted=false;a.__ok=1}).catch(()=>{a.muted=false})}catch(e){a.muted=false}}));
+  try{if(!window.__sp){const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);window.__sp=1}}catch(e){}}
+function live(kind){try{initAudio();if(!ac)return;master.gain.value=opts.vol/100*1.4;C=ac;D=master;SND[opts.style][kind]()}catch(e){}}
+function play(kind){if(muted||!opts.vol)return;const a=BUF[opts.style]?.[kind];
+  if(!a)return live(kind);
+  a.volume=Math.min(1,opts.vol/100);
+  (a.__unlock||Promise.resolve()).then(()=>{a.muted=false;a.currentTime=0;return a.play()}).catch(()=>live(kind))}
+function say(t){if(muted||!opts.voice)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.05;u.volume=1;u.lang='en-US';speechSynthesis.speak(u)}catch(e){}}
+function vib(p){if(opts.vib&&!muted)try{navigator.vibrate?.(p)}catch(e){}}
+function flash(){if(!opts.flash)return;const f=$('#flash');f.classList.remove('go');void f.offsetWidth;f.classList.add('go')}
+$('#test').addEventListener('click',()=>{unlock();play('go');setTimeout(()=>say('Work. Round 1 of 8'),700);vib([200,100,200])});
+
+/* ---------- runner ---------- */
+let ph=[],i=0,endAt=0,remain=0,paused=false,lastSec=-1,raf=0,finished=false,lock=null,flags={},startedAt=0;
+const now=()=>performance.now();
+async function wake(){try{lock=await navigator.wakeLock?.request('screen')}catch(e){}}
+function start(){
+  ph=build(cfg);if(!ph.length)return;
+  unlock();wake();
+  try{document.documentElement.requestFullscreen?.().catch(()=>{})}catch(e){}
+  $('#run').classList.add('show');document.body.style.overflow='hidden';$('#done').style.display='none';
+  finished=false;paused=false;startedAt=Date.now();$('#pp').textContent='❚❚';go(0);loop();$('#pp').focus();
+}
+function go(idx,keepEnd){i=idx;remain=ph[i].dur*1000;if(!keepEnd)endAt=now()+remain;lastSec=-1;flags={};paint();
+  const p=ph[i];play(p.type==='work'?'go':'rest');flash();vib(p.type==='work'?[400]:[150,100,150]);
+  if(p.type==='work')say(`${p.name||'Work'}. ${p.round.split(' ·')[0].replace('Round ','Round ').replace('/',' of ')}`);
+  else say(PH[p.type].l+(ph[i+1]&&ph[i+1].name?`. Next: ${ph[i+1].name}`:''));}
+function paint(){
+  const p=ph[i],n=ph[i+1];
+  $('#field').style.backgroundColor=PH[p.type].c;$('#lbl').textContent=paused?'Paused':PH[p.type].l;$('#ex').textContent=p.name;$('#rnd').textContent=p.round||'';
+  $('#nxBar').style.backgroundColor=n?PH[n.type].c:PH.done.c;$('#nx').textContent=n?`${n.name||PH[n.type].l} ${fmt(n.dur)}`:'Finish';
+  $('#rl').textContent=p.rl;$('#cl').textContent=p.cl;$('#time').classList.toggle('big',p.dur>=3600);
+}
+function logHist(complete){const done=Math.round((Date.now()-startedAt)/1000);if(done<10)return;
+  hist.unshift({at:Date.now(),name:cfgName||'Custom workout',secs:done,complete,plan:totalOf(cfg)});hist=hist.slice(0,300);store.set('iv.hist',hist)}
+function finish(){
+  finished=true;cancelAnimationFrame(raf);remain=0;
+  $('#field').style.backgroundColor=PH.done.c;$('#lbl').textContent='Workout complete';$('#ex').textContent='';$('#rnd').textContent='';
+  $('#time').textContent=fmt(ph.reduce((a,p)=>a+p.dur,0));$('#left').textContent='00:00';
+  $('#nxBar').style.backgroundColor='#2a2a2a';$('#nx').textContent='Well done';$('#rl').textContent=0;$('#cl').textContent=0;
+  $('#done').style.display='flex';play('end');flash();vib([300,150,300,150,600]);setTimeout(()=>say('Workout complete. Well done.'),900);
+  logHist(true);try{lock?.release()}catch(e){}
+}
+function loop(){
+  cancelAnimationFrame(raf);
+  const tick=()=>{
+    if(!paused){const t=now();let moved=false;
+      while(t>=endAt){if(i+1>=ph.length){finish();return}i++;endAt+=ph[i].dur*1000;moved=true}
+      if(moved)go(i,true);remain=endAt-t}
+    const sec=Math.ceil(remain/1000),p=ph[i];
+    if(sec!==lastSec){lastSec=sec;$('#time').textContent=fmt(sec);
+      $('#left').textContent=fmt(sec+ph.slice(i+1).reduce((a,q)=>a+q.dur,0));
+      if(!paused){
+        if(opts.count&&sec<=opts.count&&sec>0&&p.dur>sec){play('tick');if(sec<=3)flash();vib(80)}
+        if(opts.half&&p.type==='work'&&p.dur>=20&&!flags.h&&sec<=Math.floor(p.dur/2)&&sec>10){flags.h=1;say('Halfway')}
+        if(opts.half&&p.dur>=25&&!flags.t&&sec===10&&opts.count<10){flags.t=1;say('10 seconds')}
+      }}
+    raf=requestAnimationFrame(tick)};
+  raf=requestAnimationFrame(tick);
+}
+// keeps time and beeps going when rAF is throttled (screen dimmed / other tab)
+setInterval(()=>{if($('#run').classList.contains('show')&&!finished&&!paused&&document.hidden){const t=now();while(t>=endAt){if(i+1>=ph.length){finish();return}i++;endAt+=ph[i].dur*1000;go(i,true)}}},250);
+function togglePause(){if(finished)return;paused=!paused;if(!paused)endAt=now()+remain;else{try{speechSynthesis.cancel()}catch(e){}}
+  $('#pp').textContent=paused?'▶':'❚❚';$('#pp').setAttribute('aria-label',paused?'Resume':'Pause');$('#lbl').textContent=paused?'Paused':PH[ph[i].type].l;if(!paused)say('Go')}
+function skip(d){if(finished)return;
+  if(d<0&&ph[i].dur*1000-remain>2500)go(i);else{const j=i+d;if(j<0)go(0);else if(j>=ph.length){finish();return}else go(j)}
+  if(paused){remain=ph[i].dur*1000;lastSec=-1;$('#lbl').textContent='Paused'}}
+function adjust(s){if(finished)return;remain=Math.max(1000,remain+s*1000);if(!paused)endAt=now()+remain;lastSec=-1}
+function stop(){if(!finished)logHist(false);cancelAnimationFrame(raf);finished=true;$('#run').classList.remove('show');$('#done').style.display='none';document.body.style.overflow='';
+  paused=false;try{speechSynthesis.cancel()}catch(e){}try{lock?.release()}catch(e){}
+  try{document.fullscreenElement&&document.exitFullscreen()}catch(e){}$('#start').focus()}
+
+$('#start').addEventListener('click',start);
+$('#pp').addEventListener('click',()=>{unlock();togglePause()});
+$('#prev').addEventListener('click',()=>skip(-1));$('#next').addEventListener('click',()=>skip(1));
+$('#minus').addEventListener('click',()=>adjust(-10));$('#plus').addEventListener('click',()=>adjust(10));
+$('#close').addEventListener('click',stop);$('#back').addEventListener('click',stop);
+$('#again').addEventListener('click',()=>{unlock();$('#done').style.display='none';finished=false;paused=false;startedAt=Date.now();$('#pp').textContent='❚❚';wake();go(0);loop()});
+$('#mute').addEventListener('click',()=>{muted=!muted;$('#mute').textContent=muted?'MUTED':'SOUND ON';if(muted)try{speechSynthesis.cancel()}catch(e){}});
+document.addEventListener('keydown',e=>{if(!$('#run').classList.contains('show'))return;
+  if(e.key===' '){e.preventDefault();togglePause()}else if(e.key==='ArrowRight')skip(1);else if(e.key==='ArrowLeft')skip(-1);else if(e.key==='Escape')stop()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){try{ac?.resume()}catch(e){}if($('#run').classList.contains('show')&&!finished)wake()}});
+
+/* ---------- stopwatch ---------- */
+let swStart=0,swAcc=0,swRun=false,swLaps=[],swRaf=0;
+const swNow=()=>swAcc+(swRun?now()-swStart:0);
+const fmtMs=ms=>{const cs=Math.floor(ms/10)%100,s=Math.floor(ms/1000);return `${fmt(s)}<small>.${String(cs).padStart(2,'0')}</small>`};
+function swPaint(){$('#swT').innerHTML=fmtMs(swNow());const last=swLaps.length?swLaps[0].t:0;$('#swL').innerHTML=swLaps.length||swRun?'Lap '+(swLaps.length+1)+' · '+fmtMs(swNow()-last).replace(/<\/?small>/g,''):'';if(swRun)swRaf=requestAnimationFrame(swPaint)}
+function swList(){const ds=swLaps.map(l=>l.d),mn=Math.min(...ds),mx=Math.max(...ds);
+  $('#laps').innerHTML=swLaps.map((l,k)=>`<li><span class="ld">Lap ${swLaps.length-k}${swLaps.length>2&&l.d===mn?' <small>fastest</small>':swLaps.length>2&&l.d===mx?' <small>slowest</small>':''}</span><span class="rt bb" style="font-size:26px">${fmtMs(l.d).replace(/<\/?small>/g,'')}</span></li>`).join('')}
+$('#swGo').addEventListener('click',()=>{unlock();swRun=!swRun;if(swRun){swStart=now();wake();play('tick');swPaint()}else{swAcc+=now()-swStart;cancelAnimationFrame(swRaf);swPaint()}$('#swGo').textContent=swRun?'Pause':'Start'});
+$('#swLap').addEventListener('click',()=>{if(!swRun)return;const t=swNow(),d=t-(swLaps[0]?.t||0);swLaps.unshift({t,d});play('tick');vib(60);swList()});
+$('#swReset').addEventListener('click',()=>{swRun=false;swAcc=0;swLaps=[];cancelAnimationFrame(swRaf);$('#swGo').textContent='Start';swPaint();swList()});
+
+/* ---------- history ---------- */
+function renderHist(){
+  const week=Date.now()-7*864e5,wk=hist.filter(h=>h.at>=week);
+  $('#stats').innerHTML=`<div><b class="bb">${hist.filter(h=>h.complete).length}</b><span>completed</span></div><div><b class="bb">${wk.length}</b><span>this week</span></div><div><b class="bb">${fmt(hist.reduce((a,h)=>a+h.secs,0)).replace(/:\d\d$/,'')}</b><span>total time</span></div>`;
+  const df=new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  $('#hist').innerHTML=hist.length?hist.map(h=>`<li><span class="ld">${esc(h.name)}<small>${df.format(h.at)}${h.complete?'':' · stopped early'}</small></span><span class="rt bb" style="font-size:26px">${fmt(h.secs)}</span></li>`).join(''):'<li class="empty">Finished workouts show up here.</li>';
+}
+$('#clearHist').addEventListener('click',e=>{if(e.target.dataset.sure){hist=[];store.set('iv.hist',hist);renderHist();e.target.textContent='Clear history';delete e.target.dataset.sure}else{e.target.dataset.sure=1;e.target.textContent='Tap again to clear'}});
+
+renderSetup();swPaint();
+}
+</script>
+</body>
+</html>
